@@ -1,0 +1,11 @@
+Week 1 / Phase 1:
+- React/Vite project created
+- Dashboard structure created
+- Basic metric cards created
+- Basic recent runs table created
+- Basic goal progress bar created
+- .fit File parsing implemented using Python
+- Can process 1100 .fit files in directory
+- Created a full raw dataset
+- Created a summary dataset
+- Reduced summary dataset to ~1 MB containing only necessary columns
