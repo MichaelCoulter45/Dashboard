@@ -11,6 +11,7 @@ We want this script to calculate useful metrics like:
 
 Mileage:
  XX Average weekly mileage (the last 12 weeks)
+- Rolling 7-day mileage
  XX total lifetime mileage
  XX mileages each year
  XX mileages each month
@@ -21,12 +22,64 @@ Training:
  XX Highest mileage week ever
  XX Highest mileage month ever
  XX highest mileage year ever 
+- lifetime hours run
+- average run duration
+- training volume trends (?)
+
 
 Heart Rate:
-- average Heart rate per year
-- Average heart rate per easy run
+- avg heart rate by year
+- avg heart rate by pace
+- cardiac drift trends (?)
+- effort trends (?)
 
-Racing:
+
+Efficiency Metrics:
+- efficiency = avg_speed / avg_heart_rate
+- power_efficiency = avg_speed / avg_power
+
+
+
+Structure:
+    All-Time Summary:
+        - fastest 5k [year, month, day]
+        - fastest 10k [year, month, day]
+        - fastest half marathon [year, month, day]
+        - fastest full marathon [year, month, day]
+        
+    Each Year Stats: [
+        Each Stats: [Year]
+            - Avg Heart Rate
+            - Avg Pace
+            - Avg Distance
+            - fastest 5k [year, month, day]
+            - fastest 10k [year, month, day]
+            - fastest half marathon [year, month, day]
+            - fastest full marathon [year, month, day]
+        
+        Each Stats [Month, Year]: 
+            - Avg Heart Rate
+            - Avg Pace
+            - Avg Distance
+            - fastest 5k [year, month, day]
+            - fastest 10k [year, month, day]
+            - fastest half marathon [year, month, day]
+            - fastest full marathon [year, month, day]
+]
+
+
+
+
+
+
+
+
+
+
+
+
+Racing: (May need to go through entire dataset and run an algorythm to constantly build / rebuild these stats to find the fastest segments)
+- per year & all time
 - fastest 5k
 - fastest 10k
 - fastest half marathon
@@ -34,7 +87,7 @@ Racing:
 
 Consistency:
 - longest running streak (consecutive days or weeks)
-- runs each month
+- Number of runs each month
 
 
 
@@ -46,9 +99,10 @@ Stuff like improved easy paces and threshold paces over time.
 
 default_measurement = 'meters'
 preferred_measurement = 'miles'
+date_format = "US"
 
 ############ DATASET PROCESSING ############
-FILE_PATH = r'.\Dashboard\data\fitness-data\normalized_data\summary_list.json'
+FILE_PATH = r'.\Dashboard Demo\data\fitness-data\normalized_data\summary_list.json'
 with open(FILE_PATH, 'r') as file:
     dataset = json.load(file)
 
@@ -92,8 +146,18 @@ def distance_converter(type1=str, type2=str, type1_amount=0.0):
             return type1_amount * 1609.34
 
 
-
-
+def find_date(run_date, date_format="US"):
+    """ Depending on date format, this returns "US: [month, day, year] or not US: [day, month, year]" """
+    day, month, year = ""
+    
+    run_date = datetime.fromisoformat(run_date)
+    year = run_date.year
+    month = run_date.month
+    day = run_date.day
+    
+    if date_format.strip().lower() != "us":
+        return day, month, year
+    return month, day, year
 
 
 
@@ -115,7 +179,6 @@ def total_lifetime_distance():
 def each_distance_year():
     """ Gets the distances for each year """
     year_distance = {}
-    run_date = {}
     
     for each_run in run_dataset:
         distance = each_run.get('total_distance', 0)
@@ -128,10 +191,11 @@ def each_distance_year():
             continue
     return year_distance
 
+
+
 def each_distance_month():
     """ Gets the distances for each month """
     month_distance = {}
-    run_date = {}
     
     for each_run in run_dataset:
         distance = each_run.get('total_distance', 0)
@@ -147,7 +211,6 @@ def each_distance_month():
 def each_distance_week():
     """ Gets the distances for each week """
     week_distance = {}
-    run_date = {}
     
     for each_run in run_dataset:
         distance = each_run.get('total_distance', 0)
@@ -186,8 +249,8 @@ def avg_last_12_weeks():
     newest_run_str = max(run_dataset, key=lambda x: x.get('start_time', ''))['start_time']
     newest_date = datetime.fromisoformat(newest_run_str)
     last_12_weeks_total = 0.0
-    # Now we can check backwards from the last tracked acitivty date
-    for i in range(12):
+    # Now we can check backwards from the last tracked activty date
+    for i in range(11):
         check_date = newest_date - timedelta(weeks=i)
         check_key = (check_date.year, check_date.isocalendar()[1])
         last_12_weeks_total += weekly_mileage.get(check_key, 0.0)
@@ -195,6 +258,30 @@ def avg_last_12_weeks():
     return round(distance_converter(default_measurement, preferred_measurement, avg_12_weeks), 2)
 
 
+
+# Mileage from the last 7 days
+def rolling_7_days():
+    daily_miles = {}
+    for each_run in run_dataset:
+        distance = each_run.get('total_distance')
+        start_time_str = each_run.get('start_time')
+        try:
+            run_date = datetime.fromisoformat(start_time_str)
+            daily_key = (run_date.year, run_date.month, run_date.isocalendar()[1])
+            daily_miles[daily_key] = daily_miles.get(daily_key, 0.0) + distance
+        except ValueError:
+            continue
+        # Find newest run
+        newest_run_str = max(run_dataset, key=lambda x: x.get('start_time', ''))['start_time']
+        newest_date = datetime.fromisoformat(newest_run_str)
+        last_7_days_total = 0.0
+        # Check backwards from the last tracked activity date
+        for i in range(6):
+            check_date = newest_date - timedelta(days=i)
+            check_key = (check_date.year, check_date.month, check_date.isocalendar()[1])
+            last_7_days_total += daily_miles.get(check_key, 0.0)
+            print(last_7_days_total)
+        return round(distance_converter(default_measurement, preferred_measurement, last_7_days_total), 2)
 
 
 
@@ -334,5 +421,5 @@ if __name__ == "__main__":
     # print(each_distance_week(),"\n\n")
     # print("Highest Mileage Week Ever: (Year, Week, Miles)\n",max_distance_week(), "\n\n")
     # print("Longest Single Run Ever: (Year, Month, Day, Miles)\n", longest_single_run())
-    print(avg_last_12_weeks())
-    
+    # print(avg_last_12_weeks())
+    print(rolling_7_days())
